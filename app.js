@@ -1,39 +1,50 @@
-let map = L.map('map').fitWorld();
+
+let map = L.map('map').setView([46.8721, -113.9940], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
 }).addTo(map);
 
 let userMarker = null;
-let visited = new Set();
+let initialCentered = false;
+let loadedFeatures = new Set();
 
 function onLocationFound(e) {
-  const radius = e.accuracy / 2;
-  if (!userMarker) {
-    userMarker = L.marker(e.latlng).addTo(map);
-  } else {
-    userMarker.setLatLng(e.latlng);
-  }
-  map.setView(e.latlng, 17);
+  const { lat, lng } = e.latlng;
 
-  // Lazy-load points near driver
-  lazyLoadDots(e.latlng);
+  if (!userMarker) {
+    userMarker = L.marker([lat, lng]).addTo(map);
+  } else {
+    userMarker.setLatLng([lat, lng]);
+  }
+
+  if (!initialCentered) {
+    map.setView([lat, lng], 17); // Center only ONCE
+    initialCentered = true;
+  }
+
+  lazyLoadNearbyDots([lat, lng]);
 }
 
-function lazyLoadDots(center) {
+function lazyLoadNearbyDots(center) {
   fetch('missoula_v1.geojson')
     .then(response => response.json())
     .then(data => {
-      const features = data.features;
-      features.forEach(f => {
-        const [lng, lat] = f.geometry.coordinates;
-        const dist = map.distance(center, L.latLng(lat, lng));
-        if (dist < 1000 && !visited.has(f.id)) {
-          visited.add(f.id);
+      data.features.forEach((feature, idx) => {
+        const coords = feature.geometry.coordinates;
+        const id = feature.id || idx;
+
+        if (loadedFeatures.has(id)) return;
+
+        const [lng, lat] = coords;
+        const dist = map.distance(center, [lat, lng]);
+
+        if (dist <= 1200) {
+          loadedFeatures.add(id);
           L.circleMarker([lat, lng], {
-            radius: 4,
+            radius: 5,
             color: 'red',
             fillColor: 'red',
-            fillOpacity: 0.9,
+            fillOpacity: 0.85
           }).addTo(map);
         }
       });
@@ -41,10 +52,10 @@ function lazyLoadDots(center) {
 }
 
 function onLocationError(e) {
-  alert(e.message);
+  console.error("GPS error:", e.message);
 }
 
 map.on('locationfound', onLocationFound);
 map.on('locationerror', onLocationError);
 
-map.locate({ setView: true, watch: true, enableHighAccuracy: true });
+map.locate({ watch: true, enableHighAccuracy: true });
