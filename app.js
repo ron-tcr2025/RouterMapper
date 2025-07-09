@@ -1,25 +1,31 @@
 
-let map = L.map('map').setView([46.87, -113.99], 15);
+let map;
 let tracking = false;
 let visitedPoints = [];
 let driverMarker = null;
 let autoCenter = true;
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+function initMap(lat, lng) {
+    map = L.map('map').setView([lat, lng], 17);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
-const toggleBtn = L.control({position: 'topright'});
-toggleBtn.onAdd = function() {
-    let div = L.DomUtil.create('div', 'toggle-btn');
-    div.innerHTML = '<button id="toggleAutoCenter">Auto-Center: ON</button>';
-    div.firstChild.onclick = function() {
-        autoCenter = !autoCenter;
-        this.innerText = "Auto-Center: " + (autoCenter ? "ON" : "OFF");
+    const toggleBtn = L.control({position: 'topright'});
+    toggleBtn.onAdd = function() {
+        let div = L.DomUtil.create('div', 'toggle-btn');
+        div.innerHTML = '<button id="toggleAutoCenter">Auto-Center: ON</button>';
+        div.firstChild.onclick = function() {
+            autoCenter = !autoCenter;
+            this.innerText = "Auto-Center: " + (autoCenter ? "ON" : "OFF");
+        };
+        return div;
     };
-    return div;
-};
-toggleBtn.addTo(map);
+    toggleBtn.addTo(map);
+
+    map.on('moveend', renderVisiblePoints);
+    renderVisiblePoints();
+}
 
 function isPointInView(lat, lng) {
     return map.getBounds().contains([lat, lng]);
@@ -63,12 +69,10 @@ fetch('missoula_v1.geojson')
         }
     });
     console.log("Initial red dots rendered:", renderCount);
-
-    renderVisiblePoints();
-    map.on('moveend', renderVisiblePoints);
 });
 
 function renderVisiblePoints() {
+    if (!map) return;
     segmentPoints.forEach(point => {
         if (!point.marker && isPointInView(point.lat, point.lng)) {
             point.marker = addPoint(point.lat, point.lng);
@@ -96,11 +100,12 @@ function updateDriverPosition(pos) {
 
     if (!driverMarker) {
         driverMarker = L.marker([lat, lng]).addTo(map);
+        if (!map) initMap(lat, lng);
     } else {
         driverMarker.setLatLng([lat, lng]);
     }
 
-    if (autoCenter) {
+    if (autoCenter && map) {
         map.setView([lat, lng], map.getZoom());
     }
 
@@ -115,7 +120,11 @@ function updateDriverPosition(pos) {
 function startTracking() {
     if (navigator.geolocation) {
         tracking = true;
-        navigator.geolocation.watchPosition(updateDriverPosition);
+        navigator.geolocation.watchPosition(updateDriverPosition, 
+            err => alert("Geolocation error: " + err.message),
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+    } else {
+        alert("Geolocation is not supported by this device.");
     }
 }
 
