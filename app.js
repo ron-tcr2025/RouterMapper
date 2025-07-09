@@ -9,7 +9,6 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-// Toggle Auto-Center Button
 const toggleBtn = L.control({position: 'topright'});
 toggleBtn.onAdd = function() {
     let div = L.DomUtil.create('div', 'toggle-btn');
@@ -22,7 +21,6 @@ toggleBtn.onAdd = function() {
 };
 toggleBtn.addTo(map);
 
-// Lazy load red dots (only those in view)
 function isPointInView(lat, lng) {
     return map.getBounds().contains([lat, lng]);
 }
@@ -30,9 +28,10 @@ function isPointInView(lat, lng) {
 function addPoint(lat, lng, visited = false) {
     let color = visited ? 'green' : 'red';
     let circle = L.circleMarker([lat, lng], {
-        radius: 6,
+        radius: 10,
         color: color,
-        fillOpacity: 0.9,
+        fillColor: color,
+        fillOpacity: 1.0,
         weight: 0
     }).addTo(map);
     return circle;
@@ -43,6 +42,7 @@ let segmentPoints = [];
 fetch('missoula_v1.geojson')
 .then(res => res.json())
 .then(data => {
+    let renderCount = 0;
     data.features.forEach((feature) => {
         const coords = feature.geometry.coordinates;
         for (let i = 0; i < coords.length - 1; i++) {
@@ -52,14 +52,20 @@ fetch('missoula_v1.geojson')
             for (let s = 0; s < steps; s++) {
                 let lat = lat1 + ((lat2 - lat1) * s / steps);
                 let lng = lng1 + ((lng2 - lng1) * s / steps);
-                segmentPoints.push({ lat, lng, visited: false });
+                let point = { lat, lng, visited: false };
+                segmentPoints.push(point);
+
+                if (renderCount < 500) {
+                    point.marker = addPoint(lat, lng);
+                    renderCount++;
+                }
             }
         }
     });
+    console.log("Initial red dots rendered:", renderCount);
 
-    renderVisiblePoints(); // Initial lazy load
-
-    map.on('moveend', renderVisiblePoints); // Lazy update on pan/zoom
+    renderVisiblePoints();
+    map.on('moveend', renderVisiblePoints);
 });
 
 function renderVisiblePoints() {
@@ -71,7 +77,7 @@ function renderVisiblePoints() {
 }
 
 function getDistance(lat1, lng1, lat2, lng2) {
-    const R = 6371e3; // Earth radius in meters
+    const R = 6371e3;
     const φ1 = toRad(lat1);
     const φ2 = toRad(lat2);
     const Δφ = toRad(lat2 - lat1);
@@ -98,11 +104,10 @@ function updateDriverPosition(pos) {
         map.setView([lat, lng], map.getZoom());
     }
 
-    // Check for nearby red dots
     segmentPoints.forEach(point => {
         if (!point.visited && getDistance(lat, lng, point.lat, point.lng) <= 5) {
             point.visited = true;
-            if (point.marker) point.marker.setStyle({ color: 'green' });
+            if (point.marker) point.marker.setStyle({ color: 'green', fillColor: 'green' });
         }
     });
 }
