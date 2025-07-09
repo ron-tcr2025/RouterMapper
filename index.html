@@ -2,47 +2,27 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>RouteWISELY Tracker</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <style>
-    html, body, #map {
-      height: 100%;
-      margin: 0;
-    }
-    .button-container {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 1000;
-    }
-    button {
-      margin: 2px;
-      padding: 8px;
-    }
-    .leaflet-tooltip.street-label {
-      font-size: 12px;
-      font-weight: bold;
-      background: rgba(255,255,255,0.7);
-      color: #333;
-      border: none;
-      padding: 2px 6px;
-      border-radius: 4px;
-      pointer-events: none;
-      text-align: center;
-      white-space: nowrap;
-    }
-  </style>
+    <title>RouteMapper</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        #map { height: 100vh; }
+        .direction-icon {
+            background-color: rgba(0, 128, 255, 0.5);
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            display: block;
+        }
+    </style>
 </head>
 <body>
-  <div id="map"></div>
-  <div class="button-container">
-    <button onclick="startTracking()">Start</button>
-    <button onclick="pauseTracking()">Pause</button>
-    <button onclick="stopTracking()">Stop</button>
-  </div>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js"></script>
+    <div id="map"></div>
+    <button id="start">Start</button>
+    <button id="pause">Pause</button>
+    <button id="stop">Stop</button>
+    <button id="autocenter">Auto-Center: ON</button>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="app2.js"></script>
 </body>
 </html>

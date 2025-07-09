@@ -1,104 +1,102 @@
 
-let map = L.map('map');
-let tracking = false;
-let visitedPoints = [];
-let gpsWatchID = null;
-let driverMarker = null;
-let autoCenter = true;
+// app2.js - Optimized version for RouteMapper MVP with auto-centering and visibility fixes
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+let map;
+let watchId;
+let visited = new Set();
+let autoCentering = true;
+let currentMarker;
+let geojsonLayer;
 
-// Attempt to center map on user's location
-if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(position => {
-        const { latitude, longitude } = position.coords;
-        map.setView([latitude, longitude], 16);
-        driverMarker = L.marker([latitude, longitude]).addTo(map);
-    }, () => {
-        // fallback
-        map.setView([46.87, -113.99], 13);
-    });
-} else {
-    map.setView([46.87, -113.99], 13);
-}
+function initMap() {
+    map = L.map('map').setView([46.87, -113.996], 13);
 
-// Load GeoJSON and draw red points
-fetch('missoula_v1.geojson')
-    .then(res => res.json())
-    .then(data => {
-        let geoPoints = [];
-        data.features.forEach(feature => {
-            const coords = feature.geometry.coordinates;
-            for (let i = 0; i < coords.length - 1; i++) {
-                let lng1 = coords[i][0], lat1 = coords[i][1];
-                let lng2 = coords[i + 1][0], lat2 = coords[i + 1][1];
-                let steps = Math.floor(getDistance(lat1, lng1, lat2, lng2) / 7.62);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19
+    }).addTo(map);
 
-                for (let j = 0; j < steps; j++) {
-                    let lat = lat1 + ((lat2 - lat1) * j / steps);
-                    let lng = lng1 + ((lng2 - lng1) * j / steps);
-                    let marker = L.circleMarker([lat, lng], {
-                        radius: 4,
-                        color: 'red',
-                        fillColor: 'red',
-                        fillOpacity: 1
-                    }).addTo(map);
-                    geoPoints.push({ lat, lng, marker, visited: false });
-                }
-            }
-        });
-
-        // Update points live as driver moves
-        function updateDriverPosition(position) {
-            const { latitude, longitude } = position.coords;
-
-            if (autoCenter) map.setView([latitude, longitude]);
-
-            if (driverMarker) {
-                driverMarker.setLatLng([latitude, longitude]);
-            } else {
-                driverMarker = L.marker([latitude, longitude]).addTo(map);
-            }
-
-            geoPoints.forEach(p => {
-                if (!p.visited && getDistance(latitude, longitude, p.lat, p.lng) < 4.6) {
-                    p.marker.setStyle({ color: 'green', fillColor: 'green' });
-                    p.visited = true;
-                }
+    geojsonLayer = L.geoJSON(null, {
+        pointToLayer: function (feature, latlng) {
+            return L.circleMarker(latlng, {
+                radius: 6,
+                fillColor: "#f00",
+                color: "#800",
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.8
             });
         }
+    }).addTo(map);
 
-        window.startTracking = () => {
-            if (navigator.geolocation && !gpsWatchID) {
-                gpsWatchID = navigator.geolocation.watchPosition(updateDriverPosition);
-                tracking = true;
-            }
-        };
+    fetch('missoula_v1.geojson')
+        .then(res => res.json())
+        .then(data => {
+            geojsonLayer.addData(data);
+        });
 
-        window.pauseTracking = () => {
-            if (gpsWatchID) {
-                navigator.geolocation.clearWatch(gpsWatchID);
-                gpsWatchID = null;
-                tracking = false;
-            }
-        };
-
-        window.stopTracking = () => {
-            window.pauseTracking();
-            if (driverMarker) {
-                map.removeLayer(driverMarker);
-                driverMarker = null;
-            }
-        };
-    });
-
-function getDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3;
-    const φ1 = lat1 * Math.PI/180, φ2 = lat2 * Math.PI/180;
-    const Δφ = (lat2-lat1) * Math.PI/180, Δλ = (lon2-lon1) * Math.PI/180;
-    const a = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
+    document.getElementById('start').onclick = startTracking;
+    document.getElementById('pause').onclick = pauseTracking;
+    document.getElementById('stop').onclick = stopTracking;
+    document.getElementById('autocenter').onclick = toggleAutoCentering;
 }
+
+function startTracking() {
+    if (!navigator.geolocation) {
+        alert('Geolocation is not supported by your browser');
+        return;
+    }
+
+    watchId = navigator.geolocation.watchPosition(position => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        if (currentMarker) {
+            map.removeLayer(currentMarker);
+        }
+
+        const icon = L.divIcon({ className: 'direction-icon' });
+        currentMarker = L.marker([lat, lng], { icon }).addTo(map);
+
+        if (autoCentering) {
+            map.setView([lat, lng], map.getZoom());
+        }
+
+        geojsonLayer.eachLayer(layer => {
+            const distance = map.distance([lat, lng], layer.getLatLng());
+            if (distance <= 15 && !visited.has(layer)) {
+                visited.add(layer);
+                layer.setStyle({ fillColor: "#0f0", color: "#080" });
+            }
+        });
+    }, error => {
+        console.error(error);
+    }, {
+        enableHighAccuracy: true,
+        maximumAge: 1000
+    });
+}
+
+function pauseTracking() {
+    if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+    }
+}
+
+function stopTracking() {
+    pauseTracking();
+    if (currentMarker) {
+        map.removeLayer(currentMarker);
+    }
+    visited.clear();
+    geojsonLayer.eachLayer(layer => {
+        layer.setStyle({ fillColor: "#f00", color: "#800" });
+    });
+}
+
+function toggleAutoCentering() {
+    autoCentering = !autoCentering;
+    document.getElementById('autocenter').textContent = 'Auto-Center: ' + (autoCentering ? 'ON' : 'OFF');
+}
+
+window.onload = initMap;
